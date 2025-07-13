@@ -31,7 +31,9 @@ const server = new Server(
 // Helper function to execute kaggle CLI commands
 async function runKaggleCommand(args: string[]): Promise<any> {
   try {
-    const { stdout, stderr } = await execAsync(`kaggle ${args.join(' ')}`);
+    // Use full path to kaggle executable
+    const kagglePath = '/opt/homebrew/bin/kaggle';
+    const { stdout, stderr } = await execAsync(`${kagglePath} ${args.join(' ')}`);
     if (stderr) {
       console.error('Kaggle stderr:', stderr);
     }
@@ -222,6 +224,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
+  
+  if (!args) {
+    throw new Error('No arguments provided');
+  }
 
   try {
     switch (name) {
@@ -254,10 +260,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'kaggle_list_notebooks': {
+        const page = (args as any).page || 1;
+        const pageSize = (args as any).pageSize || 20;
         const result = await runKaggleCommand([
           'kernels', 'list', '--mine',
-          '--page', (args.page || 1).toString(),
-          '--page-size', (args.pageSize || 20).toString(),
+          '--page', page.toString(),
+          '--page-size', pageSize.toString(),
           '-v'  // verbose for JSON output
         ]);
         
@@ -272,6 +280,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'kaggle_create_notebook': {
+        const notebookArgs = args as any;
         // Create a temporary directory for the notebook
         const tempDir = await fs.mkdtemp(path.join(process.env.TMPDIR || '/tmp', 'kaggle-'));
         const notebookPath = path.join(tempDir, 'notebook.ipynb');
@@ -282,16 +291,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           cells: [
             {
               cell_type: 'code',
-              source: args.code,
+              source: notebookArgs.code,
               execution_count: null,
               outputs: [],
             },
           ],
           metadata: {
             kernelspec: {
-              language: args.language || 'python',
-              display_name: args.language === 'r' ? 'R' : 'Python 3',
-              name: args.language === 'r' ? 'ir' : 'python3',
+              language: notebookArgs.language || 'python',
+              display_name: notebookArgs.language === 'r' ? 'R' : 'Python 3',
+              name: notebookArgs.language === 'r' ? 'ir' : 'python3',
             },
           },
           nbformat: 4,
@@ -301,14 +310,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         // Create metadata
         const metadata = {
           id: `new-notebook-${Date.now()}`,
-          title: args.title,
+          title: notebookArgs.title,
           code_file: 'notebook.ipynb',
-          language: args.language || 'python',
+          language: notebookArgs.language || 'python',
           kernel_type: 'notebook',
-          is_private: args.isPrivate !== false,
-          enable_gpu: args.enableGpu || false,
-          enable_internet: args.enableInternet !== false,
-          dataset_sources: args.datasetSources || [],
+          is_private: notebookArgs.isPrivate !== false,
+          enable_gpu: notebookArgs.enableGpu || false,
+          enable_internet: notebookArgs.enableInternet !== false,
+          dataset_sources: notebookArgs.datasetSources || [],
           competition_sources: [],
           kernel_sources: [],
         };
@@ -327,26 +336,28 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           content: [
             {
               type: 'text',
-              text: `✅ Notebook created: ${args.title}\n${result}`,
+              text: `✅ Notebook created: ${notebookArgs.title}\n${result}`,
             },
           ],
         };
       }
 
       case 'kaggle_run_notebook': {
-        const result = await runKaggleCommand(['kernels', 'push', args.kernelSlug, '--new']);
+        const kernelSlug = (args as any).kernelSlug as string;
+        const result = await runKaggleCommand(['kernels', 'push', kernelSlug, '--new']);
         return {
           content: [
             {
               type: 'text',
-              text: `✅ Notebook execution started: ${args.kernelSlug}\n${result}`,
+              text: `✅ Notebook execution started: ${kernelSlug}\n${result}`,
             },
           ],
         };
       }
 
       case 'kaggle_get_notebook_status': {
-        const result = await runKaggleCommand(['kernels', 'status', args.kernelSlug]);
+        const kernelSlug = (args as any).kernelSlug as string;
+        const result = await runKaggleCommand(['kernels', 'status', kernelSlug]);
         return {
           content: [
             {
@@ -358,27 +369,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'kaggle_download_notebook_output': {
-        await fs.mkdir(args.outputPath || './kaggle-outputs', { recursive: true });
+        const downloadArgs = args as any;
+        const outputPath = downloadArgs.outputPath || './kaggle-outputs';
+        await fs.mkdir(outputPath, { recursive: true });
         const result = await runKaggleCommand([
-          'kernels', 'output', args.kernelSlug,
-          '-p', args.outputPath || './kaggle-outputs'
+          'kernels', 'output', downloadArgs.kernelSlug as string,
+          '-p', outputPath
         ]);
         
         return {
           content: [
             {
               type: 'text',
-              text: `✅ Notebook output downloaded to: ${args.outputPath || './kaggle-outputs'}\n${result}`,
+              text: `✅ Notebook output downloaded to: ${outputPath}\n${result}`,
             },
           ],
         };
       }
 
       case 'kaggle_search_datasets': {
+        const searchArgs = args as any;
         const result = await runKaggleCommand([
           'datasets', 'list',
-          '-s', args.search,
-          '--page', (args.page || 1).toString(),
+          '-s', `"${searchArgs.search}"`,
+          '--page', (searchArgs.page || 1).toString(),
           '-v'
         ]);
         
@@ -393,16 +407,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'kaggle_list_competitions': {
+        const compArgs = args as any;
         const cmdArgs = ['competitions', 'list'];
         
-        if (args.group && args.group !== 'general') {
-          cmdArgs.push('--group', args.group);
+        if (compArgs.group && compArgs.group !== 'general') {
+          cmdArgs.push('--group', compArgs.group as string);
         }
-        if (args.category && args.category !== 'all') {
-          cmdArgs.push('--category', args.category);
+        if (compArgs.category && compArgs.category !== 'all') {
+          cmdArgs.push('--category', compArgs.category as string);
         }
-        if (args.sortBy) {
-          cmdArgs.push('--sort-by', args.sortBy);
+        if (compArgs.sortBy) {
+          cmdArgs.push('--sort-by', compArgs.sortBy as string);
         }
         
         cmdArgs.push('-v'); // verbose for JSON output
