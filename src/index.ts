@@ -123,19 +123,39 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               },
               default: [],
             },
+            saveLocally: {
+              type: "boolean",
+              description: "Save metadata and notebook files locally for future use",
+              default: false,
+            },
+            localSavePath: {
+              type: "string",
+              description: "Local directory to save files when saveLocally is true",
+              default: "./kaggle-notebook",
+            },
           },
           required: ["title", "code"],
         },
       },
       {
         name: "kaggle_run_notebook",
-        description: "Run/execute a Kaggle notebook",
+        description: "Run/execute a Kaggle notebook with various execution modes",
         inputSchema: {
           type: "object",
           properties: {
             kernelSlug: {
               type: "string",
               description: "Notebook identifier (username/notebook-slug)",
+            },
+            executionMode: {
+              type: "string",
+              description: "Execution mode: 'new' for new version, 'update' for updating existing, 'local' for push from local directory",
+              enum: ["new", "update", "local"],
+              default: "new",
+            },
+            localPath: {
+              type: "string",
+              description: "Local directory path (required when executionMode is 'local')",
             },
           },
           required: ["kernelSlug"],
@@ -218,6 +238,73 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               default: "recentlyCreated",
             },
           },
+        },
+      },
+      {
+        name: "kaggle_push_kernel_with_metadata",
+        description: "Push a kernel using existing local metadata and notebook files",
+        inputSchema: {
+          type: "object",
+          properties: {
+            localPath: {
+              type: "string",
+              description: "Local directory containing kernel-metadata.json and notebook file",
+            },
+            newVersion: {
+              type: "boolean",
+              description: "Create a new version instead of updating existing",
+              default: false,
+            },
+          },
+          required: ["localPath"],
+        },
+      },
+      {
+        name: "kaggle_save_kernel_metadata",
+        description: "Save kernel metadata and notebook to local directory for later use",
+        inputSchema: {
+          type: "object",
+          properties: {
+            kernelSlug: {
+              type: "string",
+              description: "Kernel identifier (username/kernel-slug) to download metadata from",
+            },
+            localPath: {
+              type: "string",
+              description: "Local directory to save metadata and notebook files",
+              default: "./kaggle-kernel",
+            },
+            includeNotebook: {
+              type: "boolean",
+              description: "Also download the notebook file",
+              default: true,
+            },
+          },
+          required: ["kernelSlug"],
+        },
+      },
+      {
+        name: "kaggle_pull_kernel",
+        description: "Pull/download a kernel's metadata and files to local directory",
+        inputSchema: {
+          type: "object",
+          properties: {
+            kernelSlug: {
+              type: "string",
+              description: "Kernel identifier (username/kernel-slug)",
+            },
+            localPath: {
+              type: "string",
+              description: "Local directory to save kernel files",
+              default: "./kaggle-kernel",
+            },
+            metadata: {
+              type: "boolean",
+              description: "Download metadata file",
+              default: true,
+            },
+          },
+          required: ["kernelSlug"],
         },
       },
     ],
@@ -347,32 +434,82 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           tempDir,
         ]);
 
-        // Cleanup
+        let saveMessage = "";
+
+        // Save locally if requested
+        if (notebookArgs.saveLocally) {
+          const localSavePath = notebookArgs.localSavePath || "./kaggle-notebook";
+          await fs.mkdir(localSavePath, { recursive: true });
+
+          // Copy files to local save directory
+          const localNotebookPath = path.join(localSavePath, "notebook.ipynb");
+          const localMetadataPath = path.join(localSavePath, "kernel-metadata.json");
+
+          await fs.copyFile(notebookPath, localNotebookPath);
+          await fs.copyFile(metadataPath, localMetadataPath);
+
+          saveMessage = `\n📁 Files saved locally to: ${localSavePath}`;
+        }
+
+        // Cleanup temporary directory
         await fs.rm(tempDir, { recursive: true });
 
         return {
           content: [
             {
               type: "text",
-              text: `✅ Notebook created: ${notebookArgs.title}\n${result}`,
+              text: `✅ Notebook created: ${notebookArgs.title}\n${result}${saveMessage}`,
             },
           ],
         };
       }
 
       case "kaggle_run_notebook": {
-        const kernelSlug = (args as any).kernelSlug as string;
-        const result = await runKaggleCommand([
-          "kernels",
-          "push",
-          kernelSlug,
-          "--new",
-        ]);
+        const runArgs = args as any;
+        const kernelSlug = runArgs.kernelSlug as string;
+        const executionMode = runArgs.executionMode || "new";
+        const localPath = runArgs.localPath;
+
+        let cmdArgs: string[];
+        let successMessage: string;
+
+        switch (executionMode) {
+          case "new":
+            cmdArgs = ["kernels", "push", kernelSlug, "--new"];
+            successMessage = `✅ New notebook version execution started: ${kernelSlug}`;
+            break;
+
+          case "update":
+            cmdArgs = ["kernels", "push", kernelSlug];
+            successMessage = `✅ Notebook execution started (updating existing): ${kernelSlug}`;
+            break;
+
+          case "local":
+            if (!localPath) {
+              throw new Error("localPath is required when executionMode is 'local'");
+            }
+            // Verify metadata file exists
+            const metadataPath = path.join(localPath, "kernel-metadata.json");
+            try {
+              await fs.access(metadataPath);
+            } catch {
+              throw new Error(`kernel-metadata.json not found in ${localPath}`);
+            }
+            cmdArgs = ["kernels", "push", "-p", localPath];
+            successMessage = `✅ Notebook execution started from local directory: ${localPath}`;
+            break;
+
+          default:
+            throw new Error(`Invalid execution mode: ${executionMode}`);
+        }
+
+        const result = await runKaggleCommand(cmdArgs);
+
         return {
           content: [
             {
               type: "text",
-              text: `✅ Notebook execution started: ${kernelSlug}\n${result}`,
+              text: `${successMessage}\n${result}`,
             },
           ],
         };
@@ -471,6 +608,91 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 typeof result === "string"
                   ? result
                   : JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      case "kaggle_push_kernel_with_metadata": {
+        const pushArgs = args as any;
+        const localPath = pushArgs.localPath as string;
+        const newVersion = pushArgs.newVersion || false;
+
+        // Verify metadata file exists
+        const metadataPath = path.join(localPath, "kernel-metadata.json");
+        try {
+          await fs.access(metadataPath);
+        } catch {
+          throw new Error(`kernel-metadata.json not found in ${localPath}`);
+        }
+
+        // Build push command
+        const cmdArgs = ["kernels", "push", "-p", localPath];
+        if (newVersion) {
+          cmdArgs.push("--new");
+        }
+
+        const result = await runKaggleCommand(cmdArgs);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `✅ Kernel pushed from ${localPath}${newVersion ? ' (new version)' : ''}:\n${result}`,
+            },
+          ],
+        };
+      }
+
+      case "kaggle_save_kernel_metadata": {
+        const saveArgs = args as any;
+        const kernelSlug = saveArgs.kernelSlug as string;
+        const localPath = saveArgs.localPath || "./kaggle-kernel";
+        const includeNotebook = saveArgs.includeNotebook !== false;
+
+        // Create local directory
+        await fs.mkdir(localPath, { recursive: true });
+
+        // Pull kernel files
+        const cmdArgs = ["kernels", "pull", kernelSlug, "-p", localPath];
+        if (!includeNotebook) {
+          cmdArgs.push("--metadata");
+        }
+
+        const result = await runKaggleCommand(cmdArgs);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `✅ Kernel metadata${includeNotebook ? ' and notebook' : ''} saved to ${localPath}:\n${result}`,
+            },
+          ],
+        };
+      }
+
+      case "kaggle_pull_kernel": {
+        const pullArgs = args as any;
+        const kernelSlug = pullArgs.kernelSlug as string;
+        const localPath = pullArgs.localPath || "./kaggle-kernel";
+        const metadata = pullArgs.metadata !== false;
+
+        // Create local directory
+        await fs.mkdir(localPath, { recursive: true });
+
+        // Build pull command
+        const cmdArgs = ["kernels", "pull", kernelSlug, "-p", localPath];
+        if (metadata) {
+          cmdArgs.push("--metadata");
+        }
+
+        const result = await runKaggleCommand(cmdArgs);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `✅ Kernel pulled to ${localPath}:\n${result}`,
             },
           ],
         };
