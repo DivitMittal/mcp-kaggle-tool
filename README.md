@@ -6,10 +6,11 @@ MCP server for Kaggle API integration - create, run, and manage Kaggle notebooks
 
 - ✅ Authentication check for Kaggle API
 - 📝 Create and manage Kaggle notebooks
-- 🏃 Run notebooks with GPU support
+- 🚀 Push and execute notebooks with GPU support
 - 📊 Search datasets and competitions
-- 💾 Download notebook outputs
+- 💾 Download notebook outputs and metadata
 - 🔍 Monitor execution status
+- 🗂️ Local notebook management (save/pull metadata)
 
 ## 📋 Prerequisites
 
@@ -71,40 +72,61 @@ Or if running from source:
 ## 📚 Available Tools
 
 ### Authentication
-- `kaggle_auth_check` - Verify Kaggle API credentials are configured
+- `auth_check` - Verify Kaggle API credentials are configured
 
 ### Notebooks
-- `kaggle_list_notebooks` - List your Kaggle notebooks
-- `kaggle_create_notebook` - Create a new notebook with code
-- `kaggle_run_notebook` - Execute a notebook
-- `kaggle_get_notebook_status` - Check execution status
-- `kaggle_download_notebook_output` - Download notebook outputs
+- `list_notebooks` - List your Kaggle notebooks
+- `create_notebook` - Create a new notebook with code
+- `push_notebook` - Push and execute a notebook (replaces run_notebook)
+- `get_notebook_status` - Check execution status
+- `download_notebook_output` - Download notebook outputs
+- `save_notebook_metadata` - Save notebook metadata and files locally
+- `pull_notebook` - Pull/download notebook metadata and files
 
 ### Data & Competitions
-- `kaggle_search_datasets` - Search for datasets
-- `kaggle_list_competitions` - List active competitions
+- `search_datasets` - Search for datasets
+- `list_competitions` - List active competitions
 
 ## 💡 Usage Examples
 
 ### Check Authentication
 ```
-Use kaggle_auth_check to verify your credentials are set up
+Use auth_check to verify your credentials are set up
 ```
 
-### Create and Run a Notebook
+### Create and Push a Notebook
 ```
-1. Create a notebook with kaggle_create_notebook:
+1. Create a notebook with create_notebook:
    - title: "My ARC Experiment"
    - code: "print('Hello from Kaggle!')"
    - enableGpu: true
 
-2. Monitor with kaggle_get_notebook_status
-3. Download results with kaggle_download_notebook_output
+2. Push/execute with push_notebook:
+   - notebookSlug: "username/my-arc-experiment"
+   - mode: "slug"
+
+3. Monitor with get_notebook_status
+4. Download results with download_notebook_output
+```
+
+### Work with Local Notebooks
+```
+1. Save notebook locally with save_notebook_metadata:
+   - notebookSlug: "username/existing-notebook"
+   - localPath: "./my-notebook"
+
+2. Push from local directory with push_notebook:
+   - mode: "local"
+   - localPath: "./my-notebook"
+
+3. Pull existing notebooks with pull_notebook:
+   - notebookSlug: "username/existing-notebook"
+   - localPath: "./downloaded-notebook"
 ```
 
 ### Search ARC Dataset
 ```
-Use kaggle_search_datasets with search: "abstraction reasoning corpus"
+Use search_datasets with search: "abstraction reasoning corpus"
 ```
 
 ## 🚧 Development
