@@ -149,7 +149,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             executionMode: {
               type: "string",
-              description: "Execution mode: 'new' for new version, 'update' for updating existing, 'local' for push from local directory",
+              description: "Execution mode: 'new'/'update' for pushing by kernel slug (behavior determined by metadata), 'local' for push from local directory",
               enum: ["new", "update", "local"],
               default: "new",
             },
@@ -249,11 +249,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             localPath: {
               type: "string",
               description: "Local directory containing kernel-metadata.json and notebook file",
-            },
-            newVersion: {
-              type: "boolean",
-              description: "Create a new version instead of updating existing",
-              default: false,
             },
           },
           required: ["localPath"],
@@ -475,13 +470,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         switch (executionMode) {
           case "new":
-            cmdArgs = ["kernels", "push", kernelSlug, "--new"];
-            successMessage = `✅ New notebook version execution started: ${kernelSlug}`;
-            break;
-
           case "update":
+            // Note: Kaggle CLI doesn't distinguish between new/update via flags
+            // The behavior depends on the kernel metadata configuration
             cmdArgs = ["kernels", "push", kernelSlug];
-            successMessage = `✅ Notebook execution started (updating existing): ${kernelSlug}`;
+            successMessage = `✅ Notebook execution started: ${kernelSlug}`;
             break;
 
           case "local":
@@ -616,7 +609,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case "kaggle_push_kernel_with_metadata": {
         const pushArgs = args as any;
         const localPath = pushArgs.localPath as string;
-        const newVersion = pushArgs.newVersion || false;
 
         // Verify metadata file exists
         const metadataPath = path.join(localPath, "kernel-metadata.json");
@@ -627,10 +619,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
 
         // Build push command
+        // Note: Kaggle CLI doesn't have a --new flag for push command
+        // The kernel behavior is determined by the metadata configuration
         const cmdArgs = ["kernels", "push", "-p", localPath];
-        if (newVersion) {
-          cmdArgs.push("--new");
-        }
 
         const result = await runKaggleCommand(cmdArgs);
 
@@ -638,7 +629,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           content: [
             {
               type: "text",
-              text: `✅ Kernel pushed from ${localPath}${newVersion ? ' (new version)' : ''}:\n${result}`,
+              text: `✅ Kernel pushed from ${localPath}:\n${result}`,
             },
           ],
         };
