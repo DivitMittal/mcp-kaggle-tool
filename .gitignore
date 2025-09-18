@@ -44,3 +44,7 @@ kaggle-outputs/
 # Kaggle specific
 .kaggle/
 *.ipynb_checkpoints/
+
+# AI
+.serena*
+*local.json
