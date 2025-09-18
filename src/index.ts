@@ -18,7 +18,7 @@ const execAsync = promisify(exec);
 
 const server = new Server(
   {
-    name: "mcp-kaggle-tool",
+    name: "kaggle",
     version: "0.1.0",
   },
   {
