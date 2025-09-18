@@ -53,7 +53,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: [
       {
-        name: "kaggle_auth_check",
+        name: "auth_check",
         description: "Check if Kaggle API credentials are configured",
         inputSchema: {
           type: "object",
@@ -61,7 +61,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
-        name: "kaggle_list_notebooks",
+        name: "list_notebooks",
         description: "List your Kaggle notebooks (kernels)",
         inputSchema: {
           type: "object",
@@ -80,7 +80,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
-        name: "kaggle_create_notebook",
+        name: "create_notebook",
         description: "Create a new Kaggle notebook",
         inputSchema: {
           type: "object",
@@ -138,7 +138,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
-        name: "kaggle_run_notebook",
+        name: "run_notebook",
         description: "Run/execute a Kaggle notebook with various execution modes",
         inputSchema: {
           type: "object",
@@ -162,7 +162,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
-        name: "kaggle_get_notebook_status",
+        name: "get_notebook_status",
         description: "Get the status of a notebook execution",
         inputSchema: {
           type: "object",
@@ -176,7 +176,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
-        name: "kaggle_download_notebook_output",
+        name: "download_notebook_output",
         description: "Download the output of a completed notebook",
         inputSchema: {
           type: "object",
@@ -195,7 +195,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
-        name: "kaggle_search_datasets",
+        name: "search_datasets",
         description: "Search for Kaggle datasets",
         inputSchema: {
           type: "object",
@@ -214,7 +214,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
-        name: "kaggle_list_competitions",
+        name: "list_competitions",
         description: "List Kaggle competitions",
         inputSchema: {
           type: "object",
@@ -241,7 +241,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
-        name: "kaggle_push_kernel_with_metadata",
+        name: "push_kernel_with_metadata",
         description: "Push a kernel using existing local metadata and notebook files",
         inputSchema: {
           type: "object",
@@ -255,7 +255,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
-        name: "kaggle_save_kernel_metadata",
+        name: "save_kernel_metadata",
         description: "Save kernel metadata and notebook to local directory for later use",
         inputSchema: {
           type: "object",
@@ -279,7 +279,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
-        name: "kaggle_pull_kernel",
+        name: "pull_kernel",
         description: "Pull/download a kernel's metadata and files to local directory",
         inputSchema: {
           type: "object",
@@ -315,7 +315,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   try {
     switch (name) {
-      case "kaggle_auth_check": {
+      case "auth_check": {
         // Check if kaggle.json exists
         const homeDir = process.env.HOME || process.env.USERPROFILE || "";
         const kaggleConfigPath = path.join(homeDir, ".kaggle", "kaggle.json");
@@ -345,7 +345,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
       }
 
-      case "kaggle_list_notebooks": {
+      case "list_notebooks": {
         const page = (args as any).page || 1;
         const pageSize = (args as any).pageSize || 20;
         const result = await runKaggleCommand([
@@ -372,7 +372,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
-      case "kaggle_create_notebook": {
+      case "create_notebook": {
         const notebookArgs = args as any;
         // Create a temporary directory for the notebook
         const tempDir = await fs.mkdtemp(
@@ -459,7 +459,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
-      case "kaggle_run_notebook": {
+      case "run_notebook": {
         const runArgs = args as any;
         const kernelSlug = runArgs.kernelSlug as string;
         const executionMode = runArgs.executionMode || "new";
@@ -508,7 +508,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
-      case "kaggle_get_notebook_status": {
+      case "get_notebook_status": {
         const kernelSlug = (args as any).kernelSlug as string;
         const result = await runKaggleCommand([
           "kernels",
@@ -528,7 +528,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
-      case "kaggle_download_notebook_output": {
+      case "download_notebook_output": {
         const downloadArgs = args as any;
         const outputPath = downloadArgs.outputPath || "./kaggle-outputs";
         await fs.mkdir(outputPath, { recursive: true });
@@ -550,7 +550,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
-      case "kaggle_search_datasets": {
+      case "search_datasets": {
         const searchArgs = args as any;
         const result = await runKaggleCommand([
           "datasets",
@@ -575,7 +575,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
-      case "kaggle_list_competitions": {
+      case "list_competitions": {
         const compArgs = args as any;
         const cmdArgs = ["competitions", "list"];
 
@@ -606,7 +606,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
-      case "kaggle_push_kernel_with_metadata": {
+      case "push_kernel_with_metadata": {
         const pushArgs = args as any;
         const localPath = pushArgs.localPath as string;
 
@@ -635,7 +635,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
-      case "kaggle_save_kernel_metadata": {
+      case "save_kernel_metadata": {
         const saveArgs = args as any;
         const kernelSlug = saveArgs.kernelSlug as string;
         const localPath = saveArgs.localPath || "./kaggle-kernel";
@@ -662,7 +662,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
-      case "kaggle_pull_kernel": {
+      case "pull_kernel": {
         const pullArgs = args as any;
         const kernelSlug = pullArgs.kernelSlug as string;
         const localPath = pullArgs.localPath || "./kaggle-kernel";
