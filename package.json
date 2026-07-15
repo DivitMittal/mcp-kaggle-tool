@@ -26,7 +26,23 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.17.2"
+    "@modelcontextprotocol/sdk": "^1.18.0"
+  },
+  "overrides": {
+    "js-yaml": "^4.3.0",
+    "qs": "^6.14.1",
+    "path-to-regexp": "^8.3.0",
+    "body-parser": "^1.20.4",
+    "flatted": "^3.4.2",
+    "picomatch": "^4.0.5",
+    "minimatch": "^10.2.5",
+    "ajv": "^6.14.0",
+    "@babel/core": "^7.26.0",
+    "express": {
+      "body-parser": "^1.20.4",
+      "path-to-regexp": "^8.3.0",
+      "qs": "^6.14.1"
+    }
   },
   "devDependencies": {
     "@types/jest": "^29.0.0",
